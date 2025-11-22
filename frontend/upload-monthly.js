@@ -71,26 +71,26 @@ async function uploadFile(file) {
             body: formData
         });
 
-        if (!response.ok) {
-            let errorMessage = `Upload failed (status ${response.status})`;
+        const responseText = await response.text();
+        const tryParseJson = (text) => {
             try {
-                const errorData = await response.json();
-                errorMessage = errorData.detail || errorMessage;
+                return JSON.parse(text);
             } catch {
-                const text = await response.text();
-                if (text) {
-                    errorMessage = `${errorMessage}: ${text.slice(0, 200)}`;
-                }
+                return null;
             }
+        };
+
+        if (!response.ok) {
+            const parsed = tryParseJson(responseText);
+            const errorMessage = parsed?.detail
+                ? parsed.detail
+                : `Upload failed (status ${response.status})${responseText ? `: ${responseText.slice(0, 200)}` : ''}`;
             throw new Error(errorMessage);
         }
 
-        let result;
-        try {
-            result = await response.json();
-        } catch {
-            const text = await response.text();
-            throw new Error(`Response is not valid JSON (status ${response.status}): ${text.slice(0, 200)}`);
+        const result = tryParseJson(responseText);
+        if (!result) {
+            throw new Error(`Response is not valid JSON (status ${response.status}): ${responseText.slice(0, 200)}`);
         }
 
         uploadProgress.style.display = 'none';

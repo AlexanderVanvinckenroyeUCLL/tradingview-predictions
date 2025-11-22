@@ -2,13 +2,24 @@ from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from mangum import Mangum
-import pandas as pd
-import numpy as np
 from typing import List, Dict, Any, Optional
 import json
 import os
 from datetime import datetime
 import io
+
+pandas_import_error = None
+numpy_import_error = None
+try:
+    import pandas as pd
+except Exception as exc:  # pragma: no cover - defensive for runtime env issues
+    pandas_import_error = exc
+    pd = None
+try:
+    import numpy as np
+except Exception as exc:  # pragma: no cover
+    numpy_import_error = exc
+    np = None
 app = FastAPI(title="S&P500 Analysis API")
 app.add_middleware(
     CORSMiddleware,
@@ -19,6 +30,23 @@ app.add_middleware(
 )
 DAILY_DATA_PATH = "/tmp/daily_data.json"
 MONTHLY_DATA_PATH = "/tmp/monthly_data.json"
+
+
+def ensure_dependencies():
+    """
+    Vercel/Lambda kan falen als binary wheels niet goed laden.
+    Geef een duidelijk foutbericht terug in plaats van een generieke 500.
+    """
+    if pandas_import_error:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Pandas kon niet geladen worden: {pandas_import_error}"
+        )
+    if numpy_import_error:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Numpy kon niet geladen worden: {numpy_import_error}"
+        )
 def load_data(path: str) -> List[Dict]:
     if os.path.exists(path):
         with open(path, 'r') as f:
@@ -85,6 +113,7 @@ async def health_check():
     return {"status": "healthy"}
 @app.post("/api/upload")
 async def upload_daily_data(file: UploadFile = File(...)):
+    ensure_dependencies()
     try:
         contents = await file.read()
         df = pd.read_csv(io.BytesIO(contents))
@@ -109,6 +138,7 @@ async def upload_daily_data(file: UploadFile = File(...)):
         raise HTTPException(status_code=500, detail=f"Error processing file: {str(e)}")
 @app.post("/api/upload-monthly")
 async def upload_monthly_data(file: UploadFile = File(...)):
+    ensure_dependencies()
     try:
         contents = await file.read()
         df = pd.read_csv(io.BytesIO(contents))

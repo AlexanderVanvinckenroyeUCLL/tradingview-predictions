@@ -7,6 +7,8 @@ import json
 import os
 from datetime import datetime
 import io
+import sys
+import traceback
 
 pandas_import_error = None
 numpy_import_error = None
@@ -15,11 +17,13 @@ try:
 except Exception as exc:  # pragma: no cover - defensive for runtime env issues
     pandas_import_error = exc
     pd = None
+    traceback.print_exc(file=sys.stderr)
 try:
     import numpy as np
 except Exception as exc:  # pragma: no cover
     numpy_import_error = exc
     np = None
+    traceback.print_exc(file=sys.stderr)
 app = FastAPI(title="S&P500 Analysis API")
 app.add_middleware(
     CORSMiddleware,
@@ -38,11 +42,16 @@ def ensure_dependencies():
     Geef een duidelijk foutbericht terug in plaats van een generieke 500.
     """
     if pandas_import_error:
+        # Log extra context zodat het in Vercel logs zichtbaar is
+        print("Pandas import error:", pandas_import_error, file=sys.stderr)
+        traceback.print_exception(pandas_import_error, file=sys.stderr)
         raise HTTPException(
             status_code=500,
             detail=f"Pandas kon niet geladen worden: {pandas_import_error}"
         )
     if numpy_import_error:
+        print("Numpy import error:", numpy_import_error, file=sys.stderr)
+        traceback.print_exception(numpy_import_error, file=sys.stderr)
         raise HTTPException(
             status_code=500,
             detail=f"Numpy kon niet geladen worden: {numpy_import_error}"
@@ -110,6 +119,7 @@ async def root():
     return {"message": "S&P500 Analysis API", "status": "running"}
 @app.get("/api/health")
 async def health_check():
+    ensure_dependencies()
     return {"status": "healthy"}
 @app.post("/api/upload")
 async def upload_daily_data(file: UploadFile = File(...)):
@@ -163,6 +173,7 @@ async def upload_monthly_data(file: UploadFile = File(...)):
         raise HTTPException(status_code=500, detail=f"Error processing file: {str(e)}")
 @app.get("/api/daily-data")
 async def get_daily_data(limit: int = 60):
+    ensure_dependencies()
     try:
         data = load_data(DAILY_DATA_PATH)
         limited_data = data[-limit:] if len(data) > limit else data
@@ -185,6 +196,7 @@ async def get_daily_data(limit: int = 60):
         raise HTTPException(status_code=500, detail=f"Error fetching data: {str(e)}")
 @app.get("/api/monthly-data")
 async def get_monthly_data():
+    ensure_dependencies()
     try:
         data = load_data(MONTHLY_DATA_PATH)
         return data
@@ -192,6 +204,7 @@ async def get_monthly_data():
         raise HTTPException(status_code=500, detail=f"Error fetching data: {str(e)}")
 @app.get("/api/stats")
 async def get_daily_stats():
+    ensure_dependencies()
     try:
         data = load_data(DAILY_DATA_PATH)
         if not data:
@@ -214,6 +227,7 @@ async def get_daily_stats():
         raise HTTPException(status_code=500, detail=f"Error fetching stats: {str(e)}")
 @app.get("/api/monthly-stats")
 async def get_monthly_stats():
+    ensure_dependencies()
     try:
         data = load_data(MONTHLY_DATA_PATH)
         if not data:

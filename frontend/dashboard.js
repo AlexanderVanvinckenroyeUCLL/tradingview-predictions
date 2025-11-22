@@ -22,11 +22,14 @@ async function loadDashboardData() {
             fetch(`${API_BASE_URL}/api/stats`),
             fetch(`${API_BASE_URL}/api/daily-data?limit=60`)
         ]);
-        if (!statsResponse.ok || !dataResponse.ok) {
-            throw new Error('Failed to fetch data from API');
+        const data = dataResponse.ok ? await dataResponse.json() : [];
+        let stats = statsResponse.ok ? await statsResponse.json() : null;
+
+        // Fallback: als stats ontbreekt of 0 meldt, leid af uit data
+        if (!stats || !stats.total_records) {
+            stats = deriveStatsFromData(data);
         }
-        const stats = await statsResponse.json();
-        const data = await dataResponse.json();
+
         if (!data || data.length === 0) {
             showEmptyState();
             return;
@@ -41,6 +44,10 @@ async function loadDashboardData() {
     }
 }
 function renderStats(stats) {
+    if (!stats) {
+        statsContainer.innerHTML = '';
+        return;
+    }
     const html = `
         <div class="stat-card">
             <div class="stat-label">Totaal Records</div>
@@ -48,11 +55,11 @@ function renderStats(stats) {
         </div>
         <div class="stat-card">
             <div class="stat-label">Eerste Datum</div>
-            <div class="stat-value">${stats.date_range.start || 'N/A'}</div>
+            <div class="stat-value">${stats.date_range.start || ''}</div>
         </div>
         <div class="stat-card">
             <div class="stat-label">Laatste Datum</div>
-            <div class="stat-value">${stats.date_range.end || 'N/A'}</div>
+            <div class="stat-value">${stats.date_range.end || ''}</div>
         </div>
         <div class="stat-card">
             <div class="stat-label">Getoonde Records</div>
@@ -60,6 +67,17 @@ function renderStats(stats) {
         </div>
     `;
     statsContainer.innerHTML = html;
+}
+
+function deriveStatsFromData(data) {
+    if (!data || data.length === 0) return null;
+    const sorted = [...data].sort((a, b) => new Date(a.date) - new Date(b.date));
+    const start = sorted[0]?.date;
+    const end = sorted[sorted.length - 1]?.date;
+    return {
+        total_records: data.length,
+        date_range: { start, end }
+    };
 }
 function renderTable(data) {
     const sortedData = sortData(data, sortColumn, sortDirection);

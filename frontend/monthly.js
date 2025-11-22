@@ -26,11 +26,29 @@ async function loadMonthlyData() {
             fetch(`${API_BASE_URL}/api/monthly-stats`),
             fetch(`${API_BASE_URL}/api/monthly-data`)
         ]);
-        if (!statsResponse.ok || !dataResponse.ok) {
-            throw new Error('Failed to fetch data from API');
+
+        // Parse data first so we can derive stats if the stats endpoint returns empty
+        const data = dataResponse.ok ? await dataResponse.json() : [];
+        if (!data || data.length === 0) {
+            if (!statsResponse.ok) throw new Error('Failed to fetch data from API');
+            const stats = await statsResponse.json();
+            if (!stats.total_records) {
+                showEmptyState();
+                return;
+            }
+            // Should not happen (stats but no data), but guard anyway
+            currentData = [];
+            renderStats(stats);
+            showEmptyState();
+            return;
         }
-        const stats = await statsResponse.json();
-        const data = await dataResponse.json();
+
+        let stats = statsResponse.ok ? await statsResponse.json() : null;
+        // Fallback: derive stats from data when the stats call fails or returns zero (possible cold start / tmp file missing)
+        if (!stats || !stats.total_records) {
+            stats = deriveStatsFromData(data);
+        }
+
         if (!data || data.length === 0) {
             showEmptyState();
             return;
@@ -45,6 +63,10 @@ async function loadMonthlyData() {
     }
 }
 function renderStats(stats) {
+    if (!stats) {
+        statsContainer.innerHTML = '';
+        return;
+    }
     const html = `
         <div class="stat-card">
             <div class="stat-label">Totaal Maanden</div>
@@ -64,6 +86,17 @@ function renderStats(stats) {
         </div>
     `;
     statsContainer.innerHTML = html;
+}
+
+function deriveStatsFromData(data) {
+    if (!data || data.length === 0) return null;
+    const sorted = [...data].sort((a, b) => new Date(a.date) - new Date(b.date));
+    const start = sorted[0]?.date;
+    const end = sorted[sorted.length - 1]?.date;
+    return {
+        total_records: data.length,
+        date_range: { start, end }
+    };
 }
 function calculateYears(startDate, endDate) {
     if (!startDate || !endDate) return 'N/A';

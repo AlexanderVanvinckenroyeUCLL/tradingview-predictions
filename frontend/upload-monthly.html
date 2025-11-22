@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>S&P500 Analysis - Maandelijkse Data Upload</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-container">
+            <h1 class="nav-title">S&P500 Analysis</h1>
+            <div class="nav-links">
+                <a href="index.html" class="nav-link">Dashboard (1D)</a>
+                <a href="monthly.html" class="nav-link">Maandelijkse Data (1M)</a>
+                <a href="upload.html" class="nav-link">Data Upload (1D)</a>
+                <a href="upload-monthly.html" class="nav-link active">Maandelijkse Upload (1M)</a>
+                <a href="calculations.html" class="nav-link">Berekeningen</a>
+            </div>
+        </div>
+    </nav>
+
+    <main class="container">
+        <div class="upload-section">
+            <h2>Maandelijkse CSV Data Upload</h2>
+
+            <div class="upload-card">
+                <div class="upload-area" id="uploadArea">
+                    <div class="upload-icon"></div>
+                    <h3>Sleep een CSV-bestand hier of klik om te selecteren</h3>
+                    <input type="file" id="fileInput" accept=".csv" style="display: none;">
+                    <button class="btn btn-primary" id="selectFileBtn">Selecteer Bestand</button>
+                </div>
+
+                <div id="fileInfo" class="file-info" style="display: none;">
+                    <div class="file-details">
+                        <span class="file-name" id="fileName"></span>
+                        <span class="file-size" id="fileSize"></span>
+                    </div>
+                    <button class="btn btn-primary" id="uploadBtn">Upload Maandelijkse Data</button>
+                </div>
+
+                <div id="uploadProgress" class="upload-progress" style="display: none;">
+                    <div class="spinner"></div>
+                    <p>Bestand verwerken...</p>
+                    <p class="progress-detail">Data wordt opgeslagen (geen indicatoren)</p>
+                </div>
+
+                <div id="successMessage" class="message message-success" style="display: none;">
+                    <div class="message-icon"></div>
+                    <div class="message-content">
+                        <h4>Upload succesvol!</h4>
+                        <p id="successDetails"></p>
+                        <a href="monthly.html" class="btn btn-secondary">Bekijk Maandelijkse Data</a>
+                    </div>
+                </div>
+
+                <div id="errorMessage" class="message message-error" style="display: none;">
+                    <div class="message-icon"></div>
+                    <div class="message-content">
+                        <h4>Upload mislukt</h4>
+                        <p id="errorDetails"></p>
+                        <button class="btn btn-secondary" id="retryBtn">Probeer Opnieuw</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script src="upload-monthly.js"></script>
+</body>
+</html>

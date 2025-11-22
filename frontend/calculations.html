@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>S&P500 Analysis - Berekeningen</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-container">
+            <h1 class="nav-title">S&P500 Analysis</h1>
+            <div class="nav-links">
+                <a href="index.html" class="nav-link">Dashboard (1D)</a>
+                <a href="monthly.html" class="nav-link">Maandelijkse Data (1M)</a>
+                <a href="upload.html" class="nav-link">Data Upload (1D)</a>
+                <a href="upload-monthly.html" class="nav-link">Maandelijkse Upload (1M)</a>
+                <a href="calculations.html" class="nav-link active">Berekeningen</a>
+            </div>
+        </div>
+    </nav>
+
+    <main class="container">
+        <div class="calculations-section">
+            <h2>Wat betekenen deze indicatoren?</h2>
+            <p class="intro-text">
+                Op het dashboard zie je verschillende technische indicatoren. Hieronder leggen we uit wat ze betekenen en hoe je ze kunt gebruiken.
+            </p>
+
+            
+            <div class="calculation-card">
+                <h3> Previous Close</h3>
+                <div class="calc-description">
+                    <p>Dit getal toont hoeveel de koers is gestegen ten opzichte van de vorige dag.</p>
+                </div>
+                <div class="calc-formula">
+                    <h4>Wat betekent het?</h4>
+                    <p>We vergelijken de <strong>hoogste koers van vandaag</strong> met de <strong>slotkoers van gisteren</strong>.</p>
+                    <code>Previous Close = Hoogste koers vandaag - Slotkoers gisteren</code>
+                </div>
+                <div class="calc-usage">
+                    <h4>Hoe gebruik je het?</h4>
+                    <ul>
+                        <li><strong>Positief getal:</strong> De koers is hoger dan gisteren</li>
+                        <li><strong>Negatief getal:</strong> De koers is lager dan gisteren</li>
+                        <li><strong>Groot verschil:</strong> Betekent een sterke beweging</li>
+                    </ul>
+                </div>
+            </div>
+
+            
+            <div class="calculation-card">
+                <h3> RSI (Relative Strength Index)</h3>
+                <div class="calc-description">
+                    <p>De RSI laat zien of de S&P500 te veel gekocht of verkocht is. Het werkt als een thermometer tussen 0 en 100.</p>
+                </div>
+                <div class="calc-formula">
+                    <h4>Hoe werkt het?</h4>
+                    <p>De RSI kijkt naar de laatste <strong>14 dagen</strong> en vergelijkt hoeveel de koers gemiddeld stijgt versus daalt.</p>
+                    <ul>
+                        <li>We berekenen het gemiddelde van alle stijgingen</li>
+                        <li>We berekenen het gemiddelde van alle dalingen</li>
+                        <li>De verhouding tussen deze twee geeft de RSI waarde</li>
+                    </ul>
+                </div>
+                <div class="calc-usage">
+                    <h4>Hoe lees je de RSI?</h4>
+                    <div class="signal-boxes">
+                        <div class="signal-box signal-sell">
+                            <strong>RSI boven 70 </strong>
+                            <p>Overbought - De markt is misschien te hoog gestegen. Mogelijk verkoopsignaal.</p>
+                        </div>
+                        <div class="signal-box signal-neutral">
+                            <strong>RSI tussen 30-70 </strong>
+                            <p>Neutraal - De markt is in balans. Geen duidelijk signaal.</p>
+                        </div>
+                        <div class="signal-box signal-buy">
+                            <strong>RSI onder 30 🟢</strong>
+                            <p>Oversold - De markt is misschien te ver gedaald. Mogelijk koopsignaal.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            
+            <div class="calculation-card">
+                <h3> MACD (Moving Average Convergence Divergence)</h3>
+                <div class="calc-description">
+                    <p>De MACD helpt je om trends te herkennen. Het toont wanneer de koers van richting verandert.</p>
+                </div>
+                <div class="calc-formula">
+                    <h4>Hoe werkt het?</h4>
+                    <p>De MACD bestaat uit drie onderdelen:</p>
+                    <ul>
+                        <li><strong>MACD Line:</strong> Het verschil tussen een snel (12 dagen) en traag (26 dagen) gemiddelde</li>
+                        <li><strong>Signal Line:</strong> Een gemiddelde van de MACD Line over 9 dagen</li>
+                        <li><strong>Histogram:</strong> Het verschil tussen de MACD en Signal lijn</li>
+                    </ul>
+                    <p style="margin-top: 1rem;">De MACD gebruikt <strong>exponentiële gemiddelden</strong>, wat betekent dat recente dagen zwaarder wegen dan oudere dagen.</p>
+                </div>
+                <div class="calc-usage">
+                    <h4>Hoe lees je de MACD?</h4>
+                    <div class="signal-boxes">
+                        <div class="signal-box signal-buy">
+                            <strong>MACD boven Signal 🟢</strong>
+                            <p>Bullish signaal - De koers heeft opwaartse momentum. Mogelijk koopsignaal.</p>
+                        </div>
+                        <div class="signal-box signal-sell">
+                            <strong>MACD onder Signal </strong>
+                            <p>Bearish signaal - De koers heeft neerwaartse momentum. Mogelijk verkoopsignaal.</p>
+                        </div>
+                        <div class="signal-box signal-neutral">
+                            <strong>Kruising </strong>
+                            <p>Let op wanneer de MACD lijn de Signal lijn kruist - dit kan een trendverandering betekenen.</p>
+                        </div>
+                    </div>
+                    <p style="margin-top: 1rem;"><strong>Het histogram</strong> laat zien hoe sterk het signaal is. Hoe groter het histogram, hoe sterker de trend.</p>
+                </div>
+            </div>
+
+            
+            <div class="calculation-card">
+                <h3> Praktische Tips</h3>
+                <div class="calc-usage">
+                    <h4>Gebruik meerdere indicatoren samen:</h4>
+                    <ul>
+                        <li>Één indicator alleen is niet genoeg voor een goede beslissing</li>
+                        <li>Combineer RSI met MACD voor betere signalen</li>
+                        <li>Kijk ook naar de algemene trend in de koersen</li>
+                    </ul>
+
+                    <h4 style="margin-top: 1.5rem;">Denk aan het volgende:</h4>
+                    <ul>
+                        <li><strong>Valse signalen:</strong> Indicatoren zijn niet 100% betrouwbaar</li>
+                        <li><strong>Context is belangrijk:</strong> Kijk naar het grotere plaatje (nieuws, economie)</li>
+                        <li><strong>Langetermijn vs korttermijn:</strong> Deze indicatoren zijn voor dagelijkse (1D) data</li>
+                    </ul>
+
+                    <h4 style="margin-top: 1.5rem;">Data overzicht:</h4>
+                    <ul>
+                        <li><strong>Dashboard (1D):</strong> Laatste 60 dagen met alle indicatoren</li>
+                        <li><strong>Maandelijkse Data (1M):</strong> Historisch overzicht zonder berekeningen</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        // No JavaScript needed for this page - it's purely informational
+    </script>
+</body>
+</html>

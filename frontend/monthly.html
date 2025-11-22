@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>S&P500 Analysis - Maandelijkse Data</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-container">
+            <h1 class="nav-title">S&P500 Analysis</h1>
+            <div class="nav-links">
+                <a href="index.html" class="nav-link">Dashboard (1D)</a>
+                <a href="monthly.html" class="nav-link active">Maandelijkse Data (1M)</a>
+                <a href="upload.html" class="nav-link">Data Upload (1D)</a>
+                <a href="upload-monthly.html" class="nav-link">Maandelijkse Upload (1M)</a>
+                <a href="calculations.html" class="nav-link">Berekeningen</a>
+            </div>
+        </div>
+    </nav>
+
+    <main class="container">
+        <div class="header">
+            <h2>Maandelijkse Data (1M) - Alle Maanden</h2>
+        </div>
+
+        <div id="stats" class="stats-container"></div>
+
+        <div id="emptyState" class="empty-state" style="display: none;">
+            <div class="empty-icon"></div>
+            <h3>Geen maandelijkse data beschikbaar</h3>
+            <p>Upload eerst een CSV-bestand op de <a href="upload-monthly.html">Maandelijkse Upload</a> pagina.</p>
+        </div>
+
+        <div id="loadingState" class="loading-state">
+            <div class="spinner"></div>
+            <p>Data laden...</p>
+        </div>
+
+        <div id="errorState" class="error-state" style="display: none;">
+            <div class="error-icon"></div>
+            <h3>Fout bij laden van data</h3>
+            <p id="errorMessage"></p>
+        </div>
+
+        <div id="tableContainer" style="display: none;">
+            <div class="table-wrapper">
+                <table id="dataTable" class="data-table">
+                    <thead>
+                        <tr>
+                            <th class="sortable" data-column="date">Datum</th>
+                            <th class="sortable" data-column="open">Open</th>
+                            <th class="sortable" data-column="high">High</th>
+                            <th class="sortable" data-column="low">Low</th>
+                            <th class="sortable" data-column="close">Close</th>
+                            <th class="sortable" data-column="volume">Volume</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tableBody">
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </main>
+
+    <script src="monthly.js"></script>
+</body>
+</html>

@@ -230,8 +230,11 @@ async def upload_daily_data(file: UploadFile = File(...)):
                 "end": data[-1]['date'] if data else None
             }
         }
+    except HTTPException:
+        # Laat FastAPI de HTTPException doorgeven met de juiste status/detail
+        raise
     except Exception as e:
-        print("Error in upload_monthly_data:", e, file=sys.stderr)
+        print("Error in upload_daily_data:", e, file=sys.stderr)
         traceback.print_exception(type(e), e, e.__traceback__, file=sys.stderr)
         sys.stderr.flush()
         raise HTTPException(status_code=500, detail=f"Error processing file: {str(e)}")
@@ -256,8 +259,10 @@ async def upload_monthly_data(file: UploadFile = File(...)):
                 "end": data[-1]['date'] if data else None
             }
         }
+    except HTTPException:
+        raise
     except Exception as e:
-        print("Error in upload_daily_data:", e, file=sys.stderr)
+        print("Error in upload_monthly_data:", e, file=sys.stderr)
         traceback.print_exception(type(e), e, e.__traceback__, file=sys.stderr)
         sys.stderr.flush()
         raise HTTPException(status_code=500, detail=f"Error processing file: {str(e)}")

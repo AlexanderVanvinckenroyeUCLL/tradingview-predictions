@@ -9,27 +9,10 @@ from datetime import datetime
 import io
 import sys
 import traceback
-import faulthandler
+import csv
+import math
 
-faulthandler.enable()  # extra crash logging on Vercel
-print("Booting api/index.py", sys.version, file=sys.stderr)
-
-pandas_import_error = None
-numpy_import_error = None
-try:
-    import pandas as pd
-except Exception as exc:  # pragma: no cover - defensive for runtime env issues
-    pandas_import_error = exc
-    pd = None
-    traceback.print_exception(type(exc), exc, exc.__traceback__, file=sys.stderr)
-    sys.stderr.flush()
-try:
-    import numpy as np
-except Exception as exc:  # pragma: no cover
-    numpy_import_error = exc
-    np = None
-    traceback.print_exception(type(exc), exc, exc.__traceback__, file=sys.stderr)
-    sys.stderr.flush()
+print("Booting api/index.py (pure python, no pandas/numpy)", sys.version, file=sys.stderr)
 app = FastAPI(title="S&P500 Analysis API")
 app.add_middleware(
     CORSMiddleware,
@@ -40,30 +23,6 @@ app.add_middleware(
 )
 DAILY_DATA_PATH = "/tmp/daily_data.json"
 MONTHLY_DATA_PATH = "/tmp/monthly_data.json"
-
-
-def ensure_dependencies():
-    """
-    Vercel/Lambda kan falen als binary wheels niet goed laden.
-    Geef een duidelijk foutbericht terug in plaats van een generieke 500.
-    """
-    if pandas_import_error:
-        # Log extra context zodat het in Vercel logs zichtbaar is
-        print("Pandas import error:", pandas_import_error, file=sys.stderr)
-        traceback.print_exception(type(pandas_import_error), pandas_import_error, pandas_import_error.__traceback__, file=sys.stderr)
-        sys.stderr.flush()
-        raise HTTPException(
-            status_code=500,
-            detail=f"Pandas kon niet geladen worden: {pandas_import_error}"
-        )
-    if numpy_import_error:
-        print("Numpy import error:", numpy_import_error, file=sys.stderr)
-        traceback.print_exception(type(numpy_import_error), numpy_import_error, numpy_import_error.__traceback__, file=sys.stderr)
-        sys.stderr.flush()
-        raise HTTPException(
-            status_code=500,
-            detail=f"Numpy kon niet geladen worden: {numpy_import_error}"
-        )
 def load_data(path: str) -> List[Dict]:
     if os.path.exists(path):
         with open(path, 'r') as f:
@@ -72,67 +31,173 @@ def load_data(path: str) -> List[Dict]:
 def save_data(path: str, data: List[Dict]):
     with open(path, 'w') as f:
         json.dump(data, f)
-def calculate_rsi(data: pd.Series, period: int = 14) -> pd.Series:
-    delta = data.diff()
-    gain = delta.where(delta > 0, 0.0)
-    loss = -delta.where(delta < 0, 0.0)
-    avg_gain = gain.rolling(window=period, min_periods=period).mean()
-    avg_loss = loss.rolling(window=period, min_periods=period).mean()
-    for i in range(period, len(data)):
-        avg_gain.iloc[i] = (avg_gain.iloc[i-1] * (period - 1) + gain.iloc[i]) / period
-        avg_loss.iloc[i] = (avg_loss.iloc[i-1] * (period - 1) + loss.iloc[i]) / period
-    rs = avg_gain / avg_loss
-    rsi = 100 - (100 / (1 + rs))
-    return rsi
-def calculate_ema(data: pd.Series, period: int) -> pd.Series:
-    return data.ewm(span=period, adjust=False).mean()
-def calculate_macd(data: pd.Series, fast: int = 12, slow: int = 26, signal: int = 9) -> Dict[str, pd.Series]:
-    ema_fast = calculate_ema(data, fast)
-    ema_slow = calculate_ema(data, slow)
-    macd_line = ema_fast - ema_slow
-    signal_line = calculate_ema(macd_line, signal)
-    histogram = macd_line - signal_line
-    return {
-        'line': macd_line,
-        'signal': signal_line,
-        'hist': histogram
-    }
-def process_daily_data(df: pd.DataFrame) -> pd.DataFrame:
-    df = df.copy()
-    df = df.sort_values('time')
-    df['time'] = pd.to_datetime(df['time'], unit='s', errors='ignore')
-    if df['time'].dtype == 'object':
-        df['time'] = pd.to_datetime(df['time'])
-    df['date'] = df['time'].dt.strftime('%Y-%m-%d')
-    df['prev_close'] = df['close'].shift(1)
-    df['high_prev_close_diff'] = df['high'] - df['prev_close']
-    df['rsi'] = calculate_rsi(df['close'])
-    macd = calculate_macd(df['close'])
-    df['macd_line'] = macd['line']
-    df['macd_signal'] = macd['signal']
-    df['macd_hist'] = macd['hist']
-    df = df.drop(columns=['time', 'prev_close'])
-    return df
-def process_monthly_data(df: pd.DataFrame) -> pd.DataFrame:
-    df = df.copy()
-    df = df.sort_values('time')
-    df['time'] = pd.to_datetime(df['time'], unit='s', errors='ignore')
-    if df['time'].dtype == 'object':
-        df['time'] = pd.to_datetime(df['time'])
-    df['date'] = df['time'].dt.strftime('%Y-%m-%d')
-    df = df.drop(columns=['time'])
-    return df
+def parse_time(value: str) -> datetime:
+    # Supports epoch seconds or ISO date string
+    try:
+        # integer or float epoch
+        num = float(value)
+        return datetime.fromtimestamp(num)
+    except Exception:
+        pass
+    try:
+        return datetime.fromisoformat(value)
+    except Exception:
+        # fallback to pandas-like format with Z stripped
+        if isinstance(value, str) and value.endswith("Z"):
+            return datetime.fromisoformat(value.rstrip("Z"))
+        raise
+
+
+def read_csv_rows(contents: bytes) -> List[Dict[str, Any]]:
+    text = contents.decode('utf-8', errors='replace')
+    reader = csv.DictReader(io.StringIO(text))
+    rows = []
+    for row in reader:
+        rows.append(row)
+    return rows
+
+
+def to_float(val: Any) -> Optional[float]:
+    try:
+        return float(val)
+    except Exception:
+        return None
+
+
+def process_daily_data(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    # Parse and sort by time
+    parsed = []
+    for r in rows:
+        try:
+            t = parse_time(str(r.get("time", "")).strip())
+        except Exception:
+            continue
+        parsed.append({
+            "time": t,
+            "open": to_float(r.get("open")),
+            "high": to_float(r.get("high")),
+            "low": to_float(r.get("low")),
+            "close": to_float(r.get("close")),
+            "volume": to_float(r.get("volume")),
+        })
+    parsed = [p for p in parsed if None not in (p["open"], p["high"], p["low"], p["close"], p["volume"])]
+    parsed.sort(key=lambda x: x["time"])
+
+    closes = [p["close"] for p in parsed]
+
+    def calculate_rsi(values: List[float], period: int = 14) -> List[Optional[float]]:
+        if len(values) < period + 1:
+            return [None] * len(values)
+        deltas = [values[i] - values[i - 1] for i in range(1, len(values))]
+        gains = [max(d, 0) for d in deltas]
+        losses = [-min(d, 0) for d in deltas]
+
+        avg_gain = sum(gains[:period]) / period
+        avg_loss = sum(losses[:period]) / period
+        rsi_values = [None] * period
+
+        for i in range(period, len(values)):
+            gain = gains[i - 1]
+            loss = losses[i - 1]
+            avg_gain = (avg_gain * (period - 1) + gain) / period
+            avg_loss = (avg_loss * (period - 1) + loss) / period
+            if avg_loss == 0:
+                rsi = 100.0
+            else:
+                rs = avg_gain / avg_loss
+                rsi = 100 - (100 / (1 + rs))
+            rsi_values.append(rsi)
+        return rsi_values
+
+    def ema(values: List[float], period: int) -> List[float]:
+        if not values:
+            return []
+        k = 2 / (period + 1)
+        ema_vals = [values[0]]
+        for v in values[1:]:
+            ema_vals.append(v * k + ema_vals[-1] * (1 - k))
+        return ema_vals
+
+    def calculate_macd(values: List[float], fast: int = 12, slow: int = 26, signal: int = 9):
+        if not values:
+            return {"line": [], "signal": [], "hist": []}
+        ema_fast = ema(values, fast)
+        ema_slow = ema(values, slow)
+        # align lengths
+        min_len = min(len(ema_fast), len(ema_slow))
+        ema_fast = ema_fast[-min_len:]
+        ema_slow = ema_slow[-min_len:]
+        macd_line = [f - s for f, s in zip(ema_fast, ema_slow)]
+        signal_line = ema(macd_line, signal)
+        hist = [m - s for m, s in zip(macd_line[-len(signal_line):], signal_line)]
+        # pad to original length with None at start
+        pad_len = len(values) - len(macd_line)
+        macd_line = [None] * pad_len + macd_line
+        signal_line = [None] * (len(values) - len(signal_line)) + signal_line
+        hist = [None] * (len(values) - len(hist)) + hist
+        return {"line": macd_line, "signal": signal_line, "hist": hist}
+
+    rsi_vals = calculate_rsi(closes)
+    macd_vals = calculate_macd(closes)
+
+    result = []
+    for idx, row in enumerate(parsed):
+        prev_close = parsed[idx - 1]["close"] if idx > 0 else None
+        result.append({
+            "date": row["time"].strftime("%Y-%m-%d"),
+            "open": row["open"],
+            "high": row["high"],
+            "low": row["low"],
+            "close": row["close"],
+            "volume": row["volume"],
+            "high_prev_close_diff": row["high"] - prev_close if prev_close is not None else None,
+            "rsi": rsi_vals[idx] if idx < len(rsi_vals) else None,
+            "macd_line": macd_vals["line"][idx] if idx < len(macd_vals["line"]) else None,
+            "macd_signal": macd_vals["signal"][idx] if idx < len(macd_vals["signal"]) else None,
+            "macd_hist": macd_vals["hist"][idx] if idx < len(macd_vals["hist"]) else None,
+        })
+    return result
+
+
+def process_monthly_data(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    parsed = []
+    for r in rows:
+        try:
+            t = parse_time(str(r.get("time", "")).strip())
+        except Exception:
+            continue
+        parsed.append({
+            "time": t,
+            "open": to_float(r.get("open")),
+            "high": to_float(r.get("high")),
+            "low": to_float(r.get("low")),
+            "close": to_float(r.get("close")),
+            "volume": to_float(r.get("volume")),
+        })
+    parsed = [p for p in parsed if None not in (p["open"], p["high"], p["low"], p["close"], p["volume"])]
+    parsed.sort(key=lambda x: x["time"])
+
+    result = []
+    for row in parsed:
+        result.append({
+            "date": row["time"].strftime("%Y-%m-%d"),
+            "open": row["open"],
+            "high": row["high"],
+            "low": row["low"],
+            "close": row["close"],
+            "volume": row["volume"],
+        })
+    return result
 @app.get("/")
 async def root():
     return {"message": "S&P500 Analysis API", "status": "running"}
 @app.get("/api/health")
 async def health_check():
-    ensure_dependencies()
     return {
         "status": "healthy",
         "python_version": sys.version,
-        "pandas_loaded": pandas_import_error is None,
-        "numpy_loaded": numpy_import_error is None,
+        "pandas_used": False,
+        "numpy_used": False,
     }
 
 
@@ -142,25 +207,21 @@ async def debug_env():
         "python_version": sys.version,
         "cwd": os.getcwd(),
         "files": os.listdir("."),
-        "pandas_loaded": pandas_import_error is None,
-        "numpy_loaded": numpy_import_error is None,
-        "pandas_error": str(pandas_import_error) if pandas_import_error else None,
-        "numpy_error": str(numpy_import_error) if numpy_import_error else None,
+        "pandas_used": False,
+        "numpy_used": False,
     }
 @app.post("/api/upload")
 async def upload_daily_data(file: UploadFile = File(...)):
-    ensure_dependencies()
     try:
         contents = await file.read()
-        df = pd.read_csv(io.BytesIO(contents))
+        rows = read_csv_rows(contents)
         required_columns = ['time', 'open', 'high', 'low', 'close', 'volume']
-        if not all(col in df.columns for col in required_columns):
+        if not rows or not all(col in rows[0] for col in required_columns):
             raise HTTPException(
                 status_code=400,
                 detail=f"CSV must contain columns: {', '.join(required_columns)}"
             )
-        processed_df = process_daily_data(df)
-        data = processed_df.to_dict('records')
+        data = process_daily_data(rows)
         save_data(DAILY_DATA_PATH, data)
         return {
             "message": "Daily data uploaded and processed successfully",
@@ -171,21 +232,22 @@ async def upload_daily_data(file: UploadFile = File(...)):
             }
         }
     except Exception as e:
+        print("Error in upload_monthly_data:", e, file=sys.stderr)
+        traceback.print_exception(type(e), e, e.__traceback__, file=sys.stderr)
+        sys.stderr.flush()
         raise HTTPException(status_code=500, detail=f"Error processing file: {str(e)}")
 @app.post("/api/upload-monthly")
 async def upload_monthly_data(file: UploadFile = File(...)):
-    ensure_dependencies()
     try:
         contents = await file.read()
-        df = pd.read_csv(io.BytesIO(contents))
+        rows = read_csv_rows(contents)
         required_columns = ['time', 'open', 'high', 'low', 'close', 'volume']
-        if not all(col in df.columns for col in required_columns):
+        if not rows or not all(col in rows[0] for col in required_columns):
             raise HTTPException(
                 status_code=400,
                 detail=f"CSV must contain columns: {', '.join(required_columns)}"
             )
-        processed_df = process_monthly_data(df)
-        data = processed_df.to_dict('records')
+        data = process_monthly_data(rows)
         save_data(MONTHLY_DATA_PATH, data)
         return {
             "message": "Monthly data uploaded successfully",
@@ -196,10 +258,12 @@ async def upload_monthly_data(file: UploadFile = File(...)):
             }
         }
     except Exception as e:
+        print("Error in upload_daily_data:", e, file=sys.stderr)
+        traceback.print_exception(type(e), e, e.__traceback__, file=sys.stderr)
+        sys.stderr.flush()
         raise HTTPException(status_code=500, detail=f"Error processing file: {str(e)}")
 @app.get("/api/daily-data")
 async def get_daily_data(limit: int = 60):
-    ensure_dependencies()
     try:
         data = load_data(DAILY_DATA_PATH)
         limited_data = data[-limit:] if len(data) > limit else data
@@ -219,18 +283,22 @@ async def get_daily_data(limit: int = 60):
             }
         } for row in limited_data]
     except Exception as e:
+        print("Error in get_daily_data:", e, file=sys.stderr)
+        traceback.print_exception(type(e), e, e.__traceback__, file=sys.stderr)
+        sys.stderr.flush()
         raise HTTPException(status_code=500, detail=f"Error fetching data: {str(e)}")
 @app.get("/api/monthly-data")
 async def get_monthly_data():
-    ensure_dependencies()
     try:
         data = load_data(MONTHLY_DATA_PATH)
         return data
     except Exception as e:
+        print("Error in get_monthly_data:", e, file=sys.stderr)
+        traceback.print_exception(type(e), e, e.__traceback__, file=sys.stderr)
+        sys.stderr.flush()
         raise HTTPException(status_code=500, detail=f"Error fetching data: {str(e)}")
 @app.get("/api/stats")
 async def get_daily_stats():
-    ensure_dependencies()
     try:
         data = load_data(DAILY_DATA_PATH)
         if not data:
@@ -250,10 +318,12 @@ async def get_daily_stats():
             "latest_rsi": data[-1].get('rsi')
         }
     except Exception as e:
+        print("Error in get_daily_stats:", e, file=sys.stderr)
+        traceback.print_exception(type(e), e, e.__traceback__, file=sys.stderr)
+        sys.stderr.flush()
         raise HTTPException(status_code=500, detail=f"Error fetching stats: {str(e)}")
 @app.get("/api/monthly-stats")
 async def get_monthly_stats():
-    ensure_dependencies()
     try:
         data = load_data(MONTHLY_DATA_PATH)
         if not data:
@@ -269,5 +339,8 @@ async def get_monthly_stats():
             }
         }
     except Exception as e:
+        print("Error in get_monthly_stats:", e, file=sys.stderr)
+        traceback.print_exception(type(e), e, e.__traceback__, file=sys.stderr)
+        sys.stderr.flush()
         raise HTTPException(status_code=500, detail=f"Error fetching stats: {str(e)}")
 handler = Mangum(app)

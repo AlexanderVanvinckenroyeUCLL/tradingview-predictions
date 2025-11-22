@@ -34,9 +34,9 @@ async function loadDashboardData() {
             showEmptyState();
             return;
         }
-        currentData = data;
+        currentData = data.map(enrichRowWithDerived);
         renderStats(stats);
-        renderTable(data);
+        renderTable(currentData);
         showTable();
     } catch (error) {
         console.error('Error loading dashboard data:', error);
@@ -50,19 +50,19 @@ function renderStats(stats) {
     }
     const html = `
         <div class="stat-card">
-            <div class="stat-label">Totaal Records</div>
+            <div class="stat-label">Total Records</div>
             <div class="stat-value">${stats.total_records.toLocaleString()}</div>
         </div>
         <div class="stat-card">
-            <div class="stat-label">Eerste Datum</div>
+            <div class="stat-label">First Date</div>
             <div class="stat-value">${stats.date_range.start || ''}</div>
         </div>
         <div class="stat-card">
-            <div class="stat-label">Laatste Datum</div>
+            <div class="stat-label">Last Date</div>
             <div class="stat-value">${stats.date_range.end || ''}</div>
         </div>
         <div class="stat-card">
-            <div class="stat-label">Getoonde Records</div>
+            <div class="stat-label">Records Shown</div>
             <div class="stat-value">${currentData.length}</div>
         </div>
     `;
@@ -79,16 +79,30 @@ function deriveStatsFromData(data) {
         date_range: { start, end }
     };
 }
+
+function enrichRowWithDerived(row) {
+    const diff = row.high_prev_close_diff;
+    const prevClose = (row.high != null && diff != null) ? (row.high - diff) : null;
+    const diffPct = (prevClose && prevClose !== 0) ? (diff / prevClose) * 100 : null;
+    return {
+        ...row,
+        high_prev_close_diff: diff,
+        high_prev_close_pct: diffPct
+    };
+}
 function renderTable(data) {
     const sortedData = sortData(data, sortColumn, sortDirection);
     const rows = sortedData.map(row => {
         const rsiClass = getRsiClass(row.rsi);
+        const diffClass = row.high_prev_close_diff < 0 ? 'diff-negative' : '';
+        const pctClass = row.high_prev_close_pct < 0 ? 'diff-negative' : '';
         return `
             <tr>
                 <td>${row.date || '-'}</td>
                 <td>${formatNumber(row.open)}</td>
                 <td>${formatNumber(row.high)}</td>
-                <td>${formatNumber(row.high_prev_close_diff)}</td>
+                <td class="${diffClass}">${formatNumber(row.high_prev_close_diff)}</td>
+                <td class="${pctClass}">${formatPercent(row.high_prev_close_pct)}</td>
                 <td>${formatNumber(row.low)}</td>
                 <td>${formatNumber(row.close)}</td>
                 <td>${formatVolume(row.volume)}</td>
@@ -147,6 +161,11 @@ function sortData(data, column, direction) {
 function formatNumber(value) {
     if (value == null || value === undefined) return '-';
     return typeof value === 'number' ? value.toFixed(2) : value;
+}
+
+function formatPercent(value) {
+    if (value == null || value === undefined || Number.isNaN(value)) return '-';
+    return `${value.toFixed(2)}%`;
 }
 function formatVolume(value) {
     if (value == null || value === undefined) return '-';

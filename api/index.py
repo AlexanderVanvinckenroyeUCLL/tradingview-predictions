@@ -9,6 +9,10 @@ from datetime import datetime
 import io
 import sys
 import traceback
+import faulthandler
+
+faulthandler.enable()  # extra crash logging on Vercel
+print("Booting api/index.py", sys.version, file=sys.stderr)
 
 pandas_import_error = None
 numpy_import_error = None
@@ -18,12 +22,14 @@ except Exception as exc:  # pragma: no cover - defensive for runtime env issues
     pandas_import_error = exc
     pd = None
     traceback.print_exception(type(exc), exc, exc.__traceback__, file=sys.stderr)
+    sys.stderr.flush()
 try:
     import numpy as np
 except Exception as exc:  # pragma: no cover
     numpy_import_error = exc
     np = None
     traceback.print_exception(type(exc), exc, exc.__traceback__, file=sys.stderr)
+    sys.stderr.flush()
 app = FastAPI(title="S&P500 Analysis API")
 app.add_middleware(
     CORSMiddleware,
@@ -45,6 +51,7 @@ def ensure_dependencies():
         # Log extra context zodat het in Vercel logs zichtbaar is
         print("Pandas import error:", pandas_import_error, file=sys.stderr)
         traceback.print_exception(type(pandas_import_error), pandas_import_error, pandas_import_error.__traceback__, file=sys.stderr)
+        sys.stderr.flush()
         raise HTTPException(
             status_code=500,
             detail=f"Pandas kon niet geladen worden: {pandas_import_error}"
@@ -52,6 +59,7 @@ def ensure_dependencies():
     if numpy_import_error:
         print("Numpy import error:", numpy_import_error, file=sys.stderr)
         traceback.print_exception(type(numpy_import_error), numpy_import_error, numpy_import_error.__traceback__, file=sys.stderr)
+        sys.stderr.flush()
         raise HTTPException(
             status_code=500,
             detail=f"Numpy kon niet geladen worden: {numpy_import_error}"
@@ -120,7 +128,25 @@ async def root():
 @app.get("/api/health")
 async def health_check():
     ensure_dependencies()
-    return {"status": "healthy"}
+    return {
+        "status": "healthy",
+        "python_version": sys.version,
+        "pandas_loaded": pandas_import_error is None,
+        "numpy_loaded": numpy_import_error is None,
+    }
+
+
+@app.get("/api/debug-env")
+async def debug_env():
+    return {
+        "python_version": sys.version,
+        "cwd": os.getcwd(),
+        "files": os.listdir("."),
+        "pandas_loaded": pandas_import_error is None,
+        "numpy_loaded": numpy_import_error is None,
+        "pandas_error": str(pandas_import_error) if pandas_import_error else None,
+        "numpy_error": str(numpy_import_error) if numpy_import_error else None,
+    }
 @app.post("/api/upload")
 async def upload_daily_data(file: UploadFile = File(...)):
     ensure_dependencies()

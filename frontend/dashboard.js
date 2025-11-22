@@ -173,8 +173,8 @@ function formatVolume(value) {
 }
 function getRsiClass(rsi) {
     if (rsi == null) return '';
-    if (rsi > 70) return 'rsi-overbought';
-    if (rsi < 30) return 'rsi-oversold';
+    if (rsi > 75) return 'rsi-overbought';
+    if (rsi < 25) return 'rsi-oversold';
     return '';
 }
 function showLoading() {

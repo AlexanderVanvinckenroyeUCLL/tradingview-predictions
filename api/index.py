@@ -1,7 +1,6 @@
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from mangum import Mangum
 from typing import List, Dict, Any, Optional
 import json
 import os
@@ -343,4 +342,3 @@ async def get_monthly_stats():
         traceback.print_exception(type(e), e, e.__traceback__, file=sys.stderr)
         sys.stderr.flush()
         raise HTTPException(status_code=500, detail=f"Error fetching stats: {str(e)}")
-handler = Mangum(app)

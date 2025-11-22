@@ -70,11 +70,29 @@ async function uploadFile(file) {
             method: 'POST',
             body: formData
         });
+
         if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.detail || 'Upload failed');
+            let errorMessage = `Upload failed (status ${response.status})`;
+            try {
+                const errorData = await response.json();
+                errorMessage = errorData.detail || errorMessage;
+            } catch {
+                const text = await response.text();
+                if (text) {
+                    errorMessage = `${errorMessage}: ${text.slice(0, 200)}`;
+                }
+            }
+            throw new Error(errorMessage);
         }
-        const result = await response.json();
+
+        let result;
+        try {
+            result = await response.json();
+        } catch {
+            const text = await response.text();
+            throw new Error(`Response is not valid JSON (status ${response.status}): ${text.slice(0, 200)}`);
+        }
+
         uploadProgress.style.display = 'none';
         successMessage.style.display = 'block';
         successDetails.innerHTML = `

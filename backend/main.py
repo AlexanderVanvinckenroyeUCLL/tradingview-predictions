@@ -36,6 +36,17 @@ def init_db():
             macd_signal REAL,
             macd_hist REAL
         )
+    """)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS monthly_data (
+            date TEXT PRIMARY KEY,
+            open REAL,
+            high REAL,
+            low REAL,
+            close REAL,
+            volume REAL
+        )
+    """)
     conn.commit()
     conn.close()
     logger.info("Database initialized")
@@ -188,6 +199,7 @@ async def get_daily_data(limit: int = 60) -> List[Dict[str, Any]]:
         cursor.execute("SELECT COUNT(*) FROM daily_data")
         count = cursor.fetchone()[0]
         if count == 0:
+            conn.close()
             return []
         query = """
             SELECT
@@ -205,6 +217,35 @@ async def get_daily_data(limit: int = 60) -> List[Dict[str, Any]]:
             FROM daily_data
             ORDER BY date DESC
             LIMIT ?
+        """
+        cursor.execute(query, (limit,))
+        rows = cursor.fetchall()
+        result = []
+        for row in rows:
+            result.append({
+                "date": row[0],
+                "open": round(row[1], 2) if row[1] is not None else None,
+                "high": round(row[2], 2) if row[2] is not None else None,
+                "low": round(row[3], 2) if row[3] is not None else None,
+                "close": round(row[4], 2) if row[4] is not None else None,
+                "volume": int(row[5]) if row[5] is not None else None,
+                "high_prev_close_diff": round(row[6], 2) if row[6] is not None else None,
+                "rsi": round(row[7], 2) if row[7] is not None else None,
+                "macd": {
+                    "line": round(row[8], 2) if row[8] is not None else None,
+                    "signal": round(row[9], 2) if row[9] is not None else None,
+                    "hist": round(row[10], 2) if row[10] is not None else None
+                }
+            })
+        result.reverse()
+        conn.close()
+        logger.info(f"Returned {len(result)} records")
+        return result
+    except Exception as e:
+        logger.error(f"Error fetching data: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+@app.get("/api/stats")
+async def get_stats():
     try:
         conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
@@ -251,6 +292,7 @@ async def get_monthly_data(limit: Optional[int] = None) -> List[Dict[str, Any]]:
         cursor.execute("SELECT COUNT(*) FROM monthly_data")
         count = cursor.fetchone()[0]
         if count == 0:
+            conn.close()
             return []
         if limit:
             query = """
@@ -258,6 +300,14 @@ async def get_monthly_data(limit: Optional[int] = None) -> List[Dict[str, Any]]:
                 FROM monthly_data
                 ORDER BY date DESC
                 LIMIT ?
+            """
+            cursor.execute(query, (limit,))
+        else:
+            query = """
+                SELECT date, open, high, low, close, volume
+                FROM monthly_data
+                ORDER BY date DESC
+            """
             cursor.execute(query)
         rows = cursor.fetchall()
         result = []

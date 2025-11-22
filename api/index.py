@@ -17,13 +17,13 @@ try:
 except Exception as exc:  # pragma: no cover - defensive for runtime env issues
     pandas_import_error = exc
     pd = None
-    traceback.print_exc(file=sys.stderr)
+    traceback.print_exception(type(exc), exc, exc.__traceback__, file=sys.stderr)
 try:
     import numpy as np
 except Exception as exc:  # pragma: no cover
     numpy_import_error = exc
     np = None
-    traceback.print_exc(file=sys.stderr)
+    traceback.print_exception(type(exc), exc, exc.__traceback__, file=sys.stderr)
 app = FastAPI(title="S&P500 Analysis API")
 app.add_middleware(
     CORSMiddleware,
@@ -44,14 +44,14 @@ def ensure_dependencies():
     if pandas_import_error:
         # Log extra context zodat het in Vercel logs zichtbaar is
         print("Pandas import error:", pandas_import_error, file=sys.stderr)
-        traceback.print_exception(pandas_import_error, file=sys.stderr)
+        traceback.print_exception(type(pandas_import_error), pandas_import_error, pandas_import_error.__traceback__, file=sys.stderr)
         raise HTTPException(
             status_code=500,
             detail=f"Pandas kon niet geladen worden: {pandas_import_error}"
         )
     if numpy_import_error:
         print("Numpy import error:", numpy_import_error, file=sys.stderr)
-        traceback.print_exception(numpy_import_error, file=sys.stderr)
+        traceback.print_exception(type(numpy_import_error), numpy_import_error, numpy_import_error.__traceback__, file=sys.stderr)
         raise HTTPException(
             status_code=500,
             detail=f"Numpy kon niet geladen worden: {numpy_import_error}"

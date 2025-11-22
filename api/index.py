@@ -47,12 +47,24 @@ def parse_time(value: str) -> datetime:
         raise
 
 
+def sniff_delimiter(text: str) -> str:
+    try:
+        sample = text[:2048]
+        dialect = csv.Sniffer().sniff(sample, delimiters=[",", ";", "\t"])
+        return dialect.delimiter
+    except Exception:
+        return ","
+
+
 def read_csv_rows(contents: bytes) -> List[Dict[str, Any]]:
     text = contents.decode('utf-8', errors='replace')
-    reader = csv.DictReader(io.StringIO(text))
+    delimiter = sniff_delimiter(text)
+    reader = csv.DictReader(io.StringIO(text), delimiter=delimiter)
     rows = []
     for row in reader:
-        rows.append(row)
+        # normaliseer headers: lower + strip
+        normalized = { (k or "").strip().lower(): v for k, v in row.items() }
+        rows.append(normalized)
     return rows
 
 
@@ -215,10 +227,15 @@ async def upload_daily_data(file: UploadFile = File(...)):
         contents = await file.read()
         rows = read_csv_rows(contents)
         required_columns = ['time', 'open', 'high', 'low', 'close', 'volume']
-        if not rows or not all(col in rows[0] for col in required_columns):
+        if not rows:
+            raise HTTPException(status_code=400, detail="CSV bevat geen rijen")
+
+        headers = list(rows[0].keys())
+        missing = [col for col in required_columns if col not in headers]
+        if missing:
             raise HTTPException(
                 status_code=400,
-                detail=f"CSV must contain columns: {', '.join(required_columns)}"
+                detail=f"CSV mist kolommen: {', '.join(missing)}. Gevonden headers: {', '.join(headers)}"
             )
         data = process_daily_data(rows)
         save_data(DAILY_DATA_PATH, data)
@@ -244,10 +261,15 @@ async def upload_monthly_data(file: UploadFile = File(...)):
         contents = await file.read()
         rows = read_csv_rows(contents)
         required_columns = ['time', 'open', 'high', 'low', 'close', 'volume']
-        if not rows or not all(col in rows[0] for col in required_columns):
+        if not rows:
+            raise HTTPException(status_code=400, detail="CSV bevat geen rijen")
+
+        headers = list(rows[0].keys())
+        missing = [col for col in required_columns if col not in headers]
+        if missing:
             raise HTTPException(
                 status_code=400,
-                detail=f"CSV must contain columns: {', '.join(required_columns)}"
+                detail=f"CSV mist kolommen: {', '.join(missing)}. Gevonden headers: {', '.join(headers)}"
             )
         data = process_monthly_data(rows)
         save_data(MONTHLY_DATA_PATH, data)

@@ -2,7 +2,7 @@ const API_BASE_URL = window.location.hostname === 'localhost' || window.location
     ? 'http://localhost:8000'
     : window.location.origin;
 let currentData = [];
-const LS_KEY_DAILY = 'dashboard_daily_data';
+const SESSION_KEY_DAILY = 'dashboard_daily_data';
 let sortColumn = 'date';
 let sortDirection = 'desc';
 const tableContainer = document.getElementById('tableContainer');
@@ -100,7 +100,7 @@ function enrichRowWithDerived(row) {
 
 function cacheDaily(data) {
     try {
-        localStorage.setItem(LS_KEY_DAILY, JSON.stringify(data));
+        sessionStorage.setItem(SESSION_KEY_DAILY, JSON.stringify(data));
     } catch (_) {
         // ignore storage errors
     }
@@ -108,7 +108,7 @@ function cacheDaily(data) {
 
 function hasCachedDaily() {
     try {
-        return !!localStorage.getItem(LS_KEY_DAILY);
+        return !!sessionStorage.getItem(SESSION_KEY_DAILY);
     } catch (_) {
         return false;
     }
@@ -116,7 +116,7 @@ function hasCachedDaily() {
 
 function getCachedDaily() {
     try {
-        const raw = localStorage.getItem(LS_KEY_DAILY);
+        const raw = sessionStorage.getItem(SESSION_KEY_DAILY);
         return raw ? JSON.parse(raw) : [];
     } catch (_) {
         return [];

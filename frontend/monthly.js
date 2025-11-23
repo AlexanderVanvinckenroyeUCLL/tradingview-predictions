@@ -4,6 +4,7 @@ const API_BASE_URL = window.location.hostname === 'localhost' || window.location
 let currentData = [];
 let sortColumn = 'date';
 let sortDirection = 'desc';
+const SESSION_KEY_MONTHLY = 'dashboard_monthly_data';
 const tableContainer = document.getElementById('tableContainer');
 const tableBody = document.getElementById('tableBody');
 const loadingState = document.getElementById('loadingState');
@@ -28,19 +29,11 @@ async function loadMonthlyData() {
         ]);
 
         // Parse data first so we can derive stats if the stats endpoint returns empty
-        const data = dataResponse.ok ? await dataResponse.json() : [];
-        if (!data || data.length === 0) {
-            if (!statsResponse.ok) throw new Error('Failed to fetch data from API');
-            const stats = await statsResponse.json();
-            if (!stats.total_records) {
-                showEmptyState();
-                return;
-            }
-            // Should not happen (stats but no data), but guard anyway
-            currentData = [];
-            renderStats(stats);
-            showEmptyState();
-            return;
+        let data = dataResponse.ok ? await dataResponse.json() : [];
+
+        // Fallback op cache
+        if ((!data || data.length === 0) && hasCachedMonthly()) {
+            data = getCachedMonthly();
         }
 
         let stats = statsResponse.ok ? await statsResponse.json() : null;
@@ -54,6 +47,7 @@ async function loadMonthlyData() {
             return;
         }
         currentData = data;
+        cacheMonthly(currentData);
         renderStats(stats);
         renderTable(data);
         showTable();
@@ -104,6 +98,31 @@ function calculateYears(startDate, endDate) {
     const end = new Date(endDate);
     const years = ((end - start) / (1000 * 60 * 60 * 24 * 365)).toFixed(1);
     return `${years} jaar`;
+}
+
+function cacheMonthly(data) {
+    try {
+        sessionStorage.setItem(SESSION_KEY_MONTHLY, JSON.stringify(data));
+    } catch (_) {
+        // ignore
+    }
+}
+
+function hasCachedMonthly() {
+    try {
+        return !!sessionStorage.getItem(SESSION_KEY_MONTHLY);
+    } catch (_) {
+        return false;
+    }
+}
+
+function getCachedMonthly() {
+    try {
+        const raw = sessionStorage.getItem(SESSION_KEY_MONTHLY);
+        return raw ? JSON.parse(raw) : [];
+    } catch (_) {
+        return [];
+    }
 }
 function renderTable(data) {
     const sortedData = sortData(data, sortColumn, sortDirection);

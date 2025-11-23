@@ -2,6 +2,7 @@ const API_BASE_URL = window.location.hostname === 'localhost' || window.location
     ? 'http://localhost:8000'
     : window.location.origin;
 let currentData = [];
+const LS_KEY_DAILY = 'dashboard_daily_data';
 let sortColumn = 'date';
 let sortDirection = 'desc';
 const tableContainer = document.getElementById('tableContainer');
@@ -22,8 +23,13 @@ async function loadDashboardData() {
             fetch(`${API_BASE_URL}/api/stats`),
             fetch(`${API_BASE_URL}/api/daily-data?limit=60`)
         ]);
-        const data = dataResponse.ok ? await dataResponse.json() : [];
+        let data = dataResponse.ok ? await dataResponse.json() : [];
         let stats = statsResponse.ok ? await statsResponse.json() : null;
+
+        // Fallback: als API niets geeft maar we hebben cached data, gebruik die
+        if ((!data || data.length === 0) && hasCachedDaily()) {
+            data = getCachedDaily();
+        }
 
         // Fallback: als stats ontbreekt of 0 meldt, leid af uit data
         if (!stats || !stats.total_records) {
@@ -35,6 +41,7 @@ async function loadDashboardData() {
             return;
         }
         currentData = data.map(enrichRowWithDerived);
+        cacheDaily(currentData);
         renderStats(stats);
         renderTable(currentData);
         showTable();
@@ -89,6 +96,31 @@ function enrichRowWithDerived(row) {
         high_prev_close_diff: diff,
         high_prev_close_pct: diffPct
     };
+}
+
+function cacheDaily(data) {
+    try {
+        localStorage.setItem(LS_KEY_DAILY, JSON.stringify(data));
+    } catch (_) {
+        // ignore storage errors
+    }
+}
+
+function hasCachedDaily() {
+    try {
+        return !!localStorage.getItem(LS_KEY_DAILY);
+    } catch (_) {
+        return false;
+    }
+}
+
+function getCachedDaily() {
+    try {
+        const raw = localStorage.getItem(LS_KEY_DAILY);
+        return raw ? JSON.parse(raw) : [];
+    } catch (_) {
+        return [];
+    }
 }
 function renderTable(data) {
     const sortedData = sortData(data, sortColumn, sortDirection);
